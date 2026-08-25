@@ -434,7 +434,7 @@ The answer is always **grounded in actual database results** — the LLM cannot 
 ## Example Test Cases
 
 You can view the test documents used to evaluate this pipeline here:
-**[Link to Test Documents Folder]** *([Add drive link here](https://drive.google.com/drive/folders/1kTdrTSoQYLC-HO0EYP6VfW5DoZG0BOY0?usp=sharing))*
+**[Link to Test Documents Folder]** *((https://drive.google.com/drive/folders/1kTdrTSoQYLC-HO0EYP6VfW5DoZG0BOY0?usp=sharing))*
 
 ### 1. `Test-1_Approved(Nike).pdf` (Clean Digital PDF)
 - **Document Type**: Commercial Invoice (Digital)
