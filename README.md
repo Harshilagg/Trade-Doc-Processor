@@ -1,4 +1,4 @@
-# GoComet — Multi-Agent Trade Document Processing Platform
+# Multi-Agent Trade Document Processing Platform
 
 An AI-powered platform that automates trade document processing using a **4-agent pipeline architecture**. Upload a Commercial Invoice, Bill of Lading, or Packing List — the system extracts shipment fields via OCR + LLM, validates them against customer-specific rules, routes a compliance decision, and lets you query the data in natural language.
 
