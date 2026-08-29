@@ -1,0 +1,4 @@
+# Dev/test-only dependencies. Deliberately NOT in requirements.txt, which the
+# Dockerfile installs into the production image.
+-r requirements.txt
+pytest>=8.0
