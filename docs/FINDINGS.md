@@ -1,19 +1,142 @@
 # Findings
 
-**These are recorded, not fixed.** Nothing in this document has been changed in the
-code. Each finding was surfaced while adding test coverage to deterministic logic;
-in every case the existing behaviour was left exactly as found and pinned by a test,
-so that any future change to it fails loudly rather than passing silently.
+**These are recorded, not fixed — with one exception, finding 1, which was fixed
+because the service could not run at all without it.** Every other finding's
+behaviour was left exactly as found and pinned by a test, so that any future change
+to it fails loudly rather than passing silently.
 
 Ordered by severity. Measured on Python 3.13.5 / SQLite 3.53.1.
 
-Findings 2, 3, 4 and 6 have tests asserting the **current** behaviour. Those tests
+Findings 4, 5, 6 and 8 have tests asserting the **current** behaviour. Those tests
 are not endorsements — they are tripwires. Fixing a finding means updating its test
 in the same commit.
 
 ---
 
-## 1. Every route is unauthenticated
+## 1. The pinned model is decommissioned — the service cannot run
+
+**File:** `ai-service/config.py:42`
+
+**Status: FIXED** in the same commit that added this entry. Recorded here because
+it explains why `docs/ACCURACY.md`'s baseline exists at all, and what its numbers
+actually describe.
+
+**Measured:** `config.py:42` pinned `GROQ_MODEL = "llama-3.3-70b-versatile"`. Every
+call to it returns:
+
+```
+404 - The model `llama-3.3-70b-versatile` does not exist or you do not have access to it
+```
+
+Querying the account's model list confirmed this is not an access or billing
+problem — Groq has removed the model, and **no Llama chat model is available at
+all.** The only `meta-llama` entries are `llama-prompt-guard-2-22m` and `-86m`,
+which are prompt-safety classifiers, not chat models. Verified against two
+different API keys, which returned identical lists.
+
+Chat-capable models available, with JSON mode confirmed working (the extractor and
+router both pass `response_format={"type": "json_object"}`): `openai/gpt-oss-120b`,
+`openai/gpt-oss-20b`, `qwen/qwen3.8-27b`, `qwen/qwen3.6-27b`. `groq/compound-mini`
+does not return valid JSON under that flag.
+
+**Impact while broken:** total. All three agents read `Config.GROQ_MODEL`, so
+extraction, router reasoning and the query agent were all failing. A `/process` call
+exhausted all 3 extraction attempts, then returned null fields — and the failure was
+**silent to the caller**: validation proceeded against nulls and the router emitted a
+decision derived from an empty document rather than surfacing that the LLM never
+ran. Two secondary problems visible in the same trace:
+
+- The extractor retries a `404` twice (`MAX_LLM_RETRIES = 2`), treating a permanent
+  error as transient and spending three round-trips to fail.
+- Nothing in the pipeline distinguishes "the model returned nothing" from "the
+  document contained nothing".
+
+**The fix applied:** `config.py:42` now pins `openai/gpt-oss-120b`, the model
+`docs/ACCURACY.md`'s baseline was measured on, so the committed configuration and
+the committed numbers describe the same model. Nothing else was changed; no agent
+logic was touched.
+
+**Still worth addressing** (not done here): the model remains a hardcoded constant
+with no environment fallback, so the next decommissioning requires a code change and
+a redeploy. The retry-on-permanent-error and silent-null-extraction behaviours above
+are untouched.
+
+---
+
+## 2. Reported confidence does not reflect OCR uncertainty
+
+**Files:** `ai-service/services/ai_service.py` (extractor confidence),
+`ai-service/customer_rules.json` (every `confidence_threshold`),
+`ai-service/services/validator_agent.py:109-116` (the no-rule branch)
+
+**Measured** over the 3-document eval set, one run per document. Every extracted
+field bucketed by the confidence the extractor reported, against whether the value
+was actually correct:
+
+| Confidence bucket | Fields correct |
+|---|---|
+| 0.00 – 0.50 | 0 of 2 |
+| 0.50 – 0.70 | no fields |
+| 0.70 – 0.85 | 0 of 2 |
+| 0.85 – 1.00 | 18 of 20 |
+
+The top row looks like good calibration. It is not, and the aggregate is what hides
+the problem. Split by extraction path:
+
+- **Digital PDFs** (2 documents, 16 fields): every field returned at confidence
+  **1.00**, and every field was correct. Confidence is perfectly calibrated here.
+- **The scan** (1 document, 8 fields): only 2 of 8 correct — and the two errors
+  sitting in the top bucket are both from this document:
+
+| Field | Expected | Extracted | Confidence |
+|---|---|---|---|
+| `consignee_name` | `Apple Inc.` | `Aphle Inc.` | **0.95** |
+| `invoice_number` | `APP-2026-001` | `APP-2O26-OO1` | **0.85** |
+
+Both are OCR character confusions — `pp`→`ph`, and digit `0`→letter `O`. The
+extractor reported 0.95 confidence on a corrupted company name. It cannot detect
+that it is reading corrupted text, because the corruption is well-formed: `Aphle
+Inc.` is a plausible-looking company name, and `APP-2O26-OO1` is a plausible-looking
+invoice number.
+
+**Consequence:** every `confidence_threshold` in `customer_rules.json` — nike 0.75,
+adidas 0.75, apple 0.72, zara 0.70, maersk 0.65, generic 0.60 — gates on the
+assumption that reported confidence predicts correctness. That assumption **holds on
+the digital path and breaks on the OCR path**, which is precisely where extraction is
+unreliable and where the gate is most needed. A corrupted value at 0.95 clears every
+threshold in the file.
+
+**Related gap — the no-rule branch launders corrupted values.** `APP-2O26-OO1` was
+scored **`match`** by the validator. `apple` has no invoice-number rule, so the field
+takes the no-rule branch at `validator_agent.py:109-116`, which returns `match` with
+`expected: "any"` for any present value above the confidence threshold. A visibly
+corrupted invoice number is therefore recorded as a successful match, not merely
+unvalidated. Any field without a rule behaves this way, so the "match" count in a
+validation summary conflates "checked and correct" with "present and unchecked".
+
+**Observed downstream effect:** on the same document, `hs_code` was extracted as
+`847I3O` (letter I, letter O) at confidence 0.80 — above apple's 0.72 threshold, so
+it was rule-checked, failed the `8471` prefix, and became the single `mismatch`.
+Under the precedence in finding 7, one mismatch outranks the four uncertains, so the
+router returned `amendment_required` where the label was `human_review`. One OCR
+character flip changed the pipeline's decision.
+
+**A fix would involve:** deciding what confidence should mean when the text came from
+OCR. The extractor sees only the text, not the fact that it was OCR'd, so it cannot
+discount for that on its own — the extraction path is known to
+`smart_extraction_pipeline` and could be passed through. Alternatives: propagate the
+OCR engine's own per-token scores rather than asking the LLM to self-report; apply a
+per-path threshold; or treat OCR-sourced fields as capped below the highest bucket.
+Separately, the no-rule branch could return a distinct status such as `unchecked`
+instead of `match`, so unvalidated fields stop counting as successes.
+
+**Caveat:** 8 OCR fields from a single scanned document. This is indicative of a
+mechanism, not a measured error rate. The digital-path result (16 of 16 at 1.00) is
+equally thin.
+
+---
+
+## 3. Every route is unauthenticated
 
 **File:** `server/server.js:34-39`
 
@@ -52,7 +175,7 @@ user.
 
 ---
 
-## 2. The SQL guard does not stop stacked statements
+## 4. The SQL guard does not stop stacked statements
 
 **File:** `ai-service/utils/db_utils.py:413-415`
 
@@ -96,9 +219,9 @@ mode — would be defence in depth that does not depend on parsing at all.
 
 ---
 
-## 3. The guard rejects legitimate read-only queries
+## 5. The guard rejects legitimate read-only queries
 
-**File:** `ai-service/utils/db_utils.py:413-415` (same prefix check as finding 2)
+**File:** `ai-service/utils/db_utils.py:413-415` (same prefix check as finding 4)
 
 **Measured:** both of these are safe, read-only, and refused with
 `ValueError: Only SELECT queries are permitted in the query agent.`
@@ -116,7 +239,7 @@ theoretical one.
 **Impact:** availability, not security. The user gets a failed query for a question
 the system could have answered.
 
-**A fix would involve:** the same change as finding 2 — matching on the parsed
+**A fix would involve:** the same change as finding 4 — matching on the parsed
 statement rather than the raw prefix would admit both of these and reject stacked
 statements, resolving both findings together. Stripping leading comments and
 whitespace before the check would handle the second row alone.
@@ -125,7 +248,7 @@ whitespace before the check would handle the second row alone.
 
 ---
 
-## 4. The fuzzy cutoff lifts unrelated company names over the threshold
+## 6. The fuzzy cutoff lifts unrelated company names over the threshold
 
 **File:** `ai-service/services/validator_agent.py:143-147`
 
@@ -162,7 +285,7 @@ distinguishing part of the name is the part that is ignored.
 
 **Impact:** a consignee that should raise `mismatch` and force an amendment is
 instead reported as a probable scanning error and routed to human review. Since
-finding 5 shows mismatch and uncertain lead to different decisions
+finding 7 shows mismatch and uncertain lead to different decisions
 (`amendment_required` vs `human_review`), this changes the pipeline's output, not
 just its wording. The more standardised the customer's naming convention, the worse
 it gets — an allow-list of `Nike Imports LLC` / `Nike Trading Company` /
@@ -180,7 +303,7 @@ including the measured ratios above.
 
 ---
 
-## 5. "Nothing evaluated" and "no problems found" produce the same decision
+## 7. "Nothing evaluated" and "no problems found" produce the same decision
 
 **File:** `ai-service/services/router_agent.py:38-65`
 
@@ -226,7 +349,7 @@ rows.
 
 ---
 
-## 6. The two text-quality checks measure different lengths
+## 8. The two text-quality checks measure different lengths
 
 **File:** `ai-service/services/extraction_service.py:9-14`
 

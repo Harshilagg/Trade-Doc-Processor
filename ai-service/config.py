@@ -39,7 +39,11 @@ class Config:
     
     # Groq — used by: Extractor Agent, Router Agent, Query Agent
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-    GROQ_MODEL = "llama-3.3-70b-versatile"  # Latest production model
+    # Was "llama-3.3-70b-versatile", which Groq has decommissioned — it returns
+    # 404 model_not_found, and no Llama chat model is available. See
+    # docs/FINDINGS.md finding 1. This is the model docs/ACCURACY.md's baseline
+    # was measured on, so config and reported numbers describe the same model.
+    GROQ_MODEL = "openai/gpt-oss-120b"
 
     # SQLite — replaces Firestore for shipment/pipeline data persistence
     # ARCHITECTURE: SQLite chosen for zero-infra local storage; portable for demo

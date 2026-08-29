@@ -177,11 +177,12 @@ def main():
     ap.add_argument("--out", default=os.path.join(REPO_ROOT, "docs", "ACCURACY.md"))
     ap.add_argument(
         "--model",
-        default="openai/gpt-oss-120b",
+        default=None,
         help=(
-            "Groq model for the eval run. Overrides Config.GROQ_MODEL at runtime "
-            "without editing config.py, whose pinned default "
-            "'llama-3.3-70b-versatile' returns 404 (decommissioned by Groq)."
+            "Groq model for the eval run. Defaults to Config.GROQ_MODEL. Passing a "
+            "different value overrides it for this run only, without editing "
+            "config.py; the report then states that its numbers describe a "
+            "different model than the code pins."
         ),
     )
     args = ap.parse_args()
@@ -191,6 +192,8 @@ def main():
     import config
 
     configured = config.Config.GROQ_MODEL
+    if args.model is None:
+        args.model = configured
     if args.model != configured:
         print(
             f"NOTE: overriding Config.GROQ_MODEL {configured!r} -> {args.model!r} "
