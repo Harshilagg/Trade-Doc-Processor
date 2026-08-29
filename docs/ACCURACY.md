@@ -1,6 +1,6 @@
 # Extraction accuracy
 
-Generated 2026-08-29 17:02 UTC by `eval/run_eval.py`.
+Generated 2026-08-29 17:30 UTC by `eval/run_eval.py`.
 
 ## Read this first
 
@@ -11,8 +11,6 @@ The confidence-calibration buckets are especially thin — several are likely em
 Each document was run **3 times** (the extractor uses temperature 0.1, so output can vary). Accuracy is scored on run 1; the extra runs feed the stability check at the end.
 
 Model used: **`openai/gpt-oss-120b`**.
-
-> **The model is not the one the code pins.** `config.py:42` hardcodes `GROQ_MODEL = "llama-3.3-70b-versatile"`, which returns `404 model_not_found` — Groq has decommissioned it, and no Llama chat model is available on this account. The pipeline therefore cannot run as configured: every extraction attempt fails and the extractor returns null fields. This run overrides the model at runtime (`--model openai/gpt-oss-120b`) purely so a baseline exists; `config.py` is unmodified. **Every number below describes `openai/gpt-oss-120b`, not `llama-3.3-70b-versatile`.**
 
 ## Field extraction accuracy
 
@@ -74,12 +72,12 @@ Wall-clock per run. `extract` is text extraction only (the PyMuPDF or PaddleOCR 
 
 | Document | Path | extract (s) | total (s) |
 |---|---|---|---|
-| `Test-1_Approved(Nike).pdf` | digital | 0.00, 0.01, 0.01 | 3.29, 3.50, 9.61 |
-| `Test-2_Amendment(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 20.79, 20.29, 22.10 |
-| `Test-3_HumanReview(Apple) (1).pdf` | ocr | 13.46, 9.04, 9.93 | 23.06, 21.38, 22.81 |
+| `Test-1_Approved(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 3.80, 3.32, 3.42 |
+| `Test-2_Amendment(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 4.75, 25.54, 17.01 |
+| `Test-3_HumanReview(Apple) (1).pdf` | ocr | 13.95, 10.47, 15.74 | 21.99, 24.17, 21.09 |
 
-- **digital**: 6 runs over 2 document(s), text extraction 0.00–0.01s
-- **ocr**: 3 runs over 1 document(s), text extraction 9.04–13.46s
+- **digital**: 6 runs over 2 document(s), text extraction 0.01–0.01s
+- **ocr**: 3 runs over 1 document(s), text extraction 10.47–15.74s
 
 The two paths are backed by very few documents (2 digital, 1 OCR), so this split is a single observation per path rather than a comparison.
 
@@ -123,12 +121,12 @@ With a set this small the individual misses say more than the totals.
 |---|---|---|---|---|
 | `consignee_name` | Apple Inc. | Aphle Inc. | 0.95 | **miss** |
 | `hs_code` | 847130 | 847I3O | 0.80 | **miss** |
-| `port_of_loading` | Shenzhen | Shenzhen | 0.90 | ok |
+| `port_of_loading` | Shenzhen | Shenzhen | 0.95 | ok |
 | `port_of_discharge` | Los Angeles | — | 0.00 | **miss** |
-| `incoterms` | DAP | DAP | 0.95 | ok |
+| `incoterms` | DAP | DAP | 0.98 | ok |
 | `description_of_goods` | Laptop Computers | — | 0.00 | **miss** |
-| `gross_weight` | 1850 KG | 7185O kg | 0.70 | **miss** |
-| `invoice_number` | APP-2026-001 | APP-2O26-OO1 | 0.85 | **miss** |
+| `gross_weight` | 1850 KG | 7185O KG | 0.75 | **miss** |
+| `invoice_number` | APP-2026-001 | APP-2O26-OO1 | 0.90 | **miss** |
 
 ## Method
 
