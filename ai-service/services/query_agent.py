@@ -25,13 +25,17 @@ ARCHITECTURE NOTE:
 
 # pyrefly: ignore [missing-import]
 from groq import Groq
+from utils.llm_metrics import instrumented_groq
 import json
 import re
 from config import Config
 from logger import logger
 from utils.db_utils import execute_raw_sql
 
-groq_client = Groq(api_key=Config.GROQ_API_KEY)
+# Instrumented proxy: records tokens/latency/cost per call. Forwards to Groq
+# unchanged - no prompt, model or behaviour is altered. See utils/llm_metrics.py.
+# This agent makes two distinct calls, labelled individually at their call sites.
+groq_client = instrumented_groq("query")
 
 # Schema description injected into the SQL generation prompt
 SCHEMA_DESCRIPTION = """
@@ -170,6 +174,7 @@ def run_query(question: str) -> dict:
     # Step 1: Generate SQL from natural language
     try:
         sql_completion = groq_client.chat.completions.create(
+            _agent="query_sql",
             messages=[{"role": "user", "content": _build_sql_prompt(question)}],
             model=Config.GROQ_MODEL,
             timeout=Config.LLM_TIMEOUT_SECONDS,
@@ -206,6 +211,7 @@ def run_query(question: str) -> dict:
     # Step 3: Generate grounded natural language answer
     try:
         answer_completion = groq_client.chat.completions.create(
+            _agent="query_answer",
             messages=[{"role": "user", "content": _build_answer_prompt(question, sql, rows)}],
             model=Config.GROQ_MODEL,
             timeout=Config.LLM_TIMEOUT_SECONDS,

@@ -17,13 +17,16 @@ ARCHITECTURE NOTE:
 
 # pyrefly: ignore [missing-import]
 from groq import Groq
+from utils.llm_metrics import instrumented_groq
 import json
 import re
 from config import Config
 from logger import logger
 
 # Initialize Groq client (singleton — reused across requests)
-groq_client = Groq(api_key=Config.GROQ_API_KEY)
+# Instrumented proxy: records tokens/latency/cost per call. Forwards to Groq
+# unchanged — no prompt, model or behaviour is altered. See utils/llm_metrics.py.
+groq_client = instrumented_groq("extractor")
 
 # The 8 required fields per GoComet assignment spec
 REQUIRED_FIELDS = [

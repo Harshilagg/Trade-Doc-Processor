@@ -38,6 +38,7 @@ from services.extraction_service import (  # noqa: E402
     validate_text_quality,
 )
 from services.router_agent import route_decision  # noqa: E402
+from utils import llm_metrics  # noqa: E402
 from services.validator_agent import validate_shipment  # noqa: E402
 
 # ── Decision vocabulary ───────────────────────────────────────────────────────
@@ -128,6 +129,7 @@ def detect_path(file_path):
 
 def run_document(file_path, customer_id):
     """One full pipeline pass over one local document."""
+    llm_metrics.reset()
     t0 = time.perf_counter()
     raw_text = smart_extraction_pipeline(file_path)
     t_extract = time.perf_counter() - t0
@@ -149,6 +151,7 @@ def run_document(file_path, customer_id):
         "llm_seconds": round(t_llm, 3),
         "total_seconds": round(time.perf_counter() - t0, 3),
         "raw_text_length": len(raw_text or ""),
+        "llm_calls": llm_metrics.get_calls(),
     }
 
 
@@ -241,6 +244,157 @@ def main():
     with open(args.out, "w", encoding="utf-8") as fh:
         fh.write(report)
     print(f"\nWrote {args.out}")
+
+    query_calls = measure_query_agent(args)
+    cost_out = os.path.join(os.path.dirname(args.out), "COST.md")
+    with open(cost_out, "w", encoding="utf-8") as fh:
+        fh.write(build_cost_report(documents, results, paths, args, query_calls))
+    print(f"Wrote {cost_out}")
+
+
+# Cost probes for the Query Agent. It is not part of /process, so it never appears
+# in a per-document cost. These questions exercise its two calls; they are cost
+# probes, not correctness tests, and are not ground truth.
+QUERY_PROBES = [
+    "How many shipments are there?",
+    "Which shipments are from Shanghai?",
+    "What is the average gross weight?",
+]
+
+
+def measure_query_agent(args):
+    """Run the query agent once per probe, recording its two calls each time."""
+    from services.query_agent import run_query
+
+    collected = []
+    for question in QUERY_PROBES:
+        llm_metrics.reset()
+        try:
+            run_query(question)
+        except Exception as exc:  # a failed probe still has recorded calls
+            print(f"  query probe failed ({question!r}): {exc}", flush=True)
+        collected.extend(llm_metrics.get_calls())
+    return collected
+
+
+def _fmt_usd(value):
+    return f"${value:.6f}"
+
+
+def build_cost_report(documents, results, paths, args, query_calls):
+    lines = []
+    w = lines.append
+    now = datetime.now(timezone.utc)
+
+    doc_calls = [c for doc in documents for r in results[doc["file_name"]] for c in r["llm_calls"]]
+    doc_summary = llm_metrics.summarise(doc_calls)
+    runs = args.runs
+    n_docs = len(documents)
+    doc_runs = n_docs * runs
+
+    w("# LLM cost baseline")
+    w("")
+    w(f"Generated {now.strftime('%Y-%m-%d %H:%M UTC')} by `eval/run_eval.py`.")
+    w("")
+    w("**This is the pre-optimisation baseline. No cost reduction has been applied.**")
+    w("")
+    w(f"Model: `{MODEL_NOTE['used']}`. Token counts are taken from each Groq "
+      "response's `usage` field, never counted locally.")
+    w("")
+    w(f"Pricing source: {llm_metrics.PRICING_SOURCE} — "
+      f"`{MODEL_NOTE['used']}` at "
+      f"${llm_metrics.PRICING_PER_1M[MODEL_NOTE['used']]['input']:.3f} per 1M input "
+      f"and ${llm_metrics.PRICING_PER_1M[MODEL_NOTE['used']]['output']:.2f} per 1M "
+      "output tokens. Any model without a published price records as unpriced "
+      "rather than as zero.")
+    w("")
+
+    w("## Cost per document processed")
+    w("")
+    total_cost = doc_summary["total"]["cost_usd"]
+    w(f"**{_fmt_usd(total_cost / doc_runs)} per document**, averaged over "
+      f"{doc_runs} runs ({n_docs} documents x {runs} runs).")
+    w("")
+    w(f"Total for all {doc_runs} runs: {_fmt_usd(total_cost)} across "
+      f"{doc_summary['total']['calls']} LLM calls, "
+      f"{doc_summary['total']['prompt_tokens']:,} prompt tokens and "
+      f"{doc_summary['total']['completion_tokens']:,} completion tokens.")
+    w("")
+    if doc_summary["total"]["failures"]:
+        w(f"{doc_summary['total']['failures']} call(s) failed and are recorded with "
+          "zero tokens.")
+        w("")
+
+    w("### Per agent, per document run")
+    w("")
+    w("| Agent | Calls/doc | Prompt tokens | Completion tokens | Cost/doc | Share |")
+    w("|---|---|---|---|---|---|")
+    for agent in sorted(doc_summary["per_agent"], key=lambda a: -doc_summary["per_agent"][a]["cost_usd"]):
+        b = doc_summary["per_agent"][agent]
+        share = (b["cost_usd"] / total_cost * 100) if total_cost else 0
+        w(f"| `{agent}` | {b['calls'] / doc_runs:.1f} | "
+          f"{b['prompt_tokens'] / doc_runs:,.0f} | {b['completion_tokens'] / doc_runs:,.0f} | "
+          f"{_fmt_usd(b['cost_usd'] / doc_runs)} | {share:.0f}% |")
+    w("")
+    w("Prompt and completion token columns are per document run. The validator "
+      "makes no LLM call at all and so does not appear.")
+    w("")
+
+    w("### Per document")
+    w("")
+    w("| Document | Path | Prompt tokens | Completion tokens | Cost |")
+    w("|---|---|---|---|---|")
+    for doc in documents:
+        name = doc["file_name"]
+        calls = [c for r in results[name] for c in r["llm_calls"]]
+        s = llm_metrics.summarise(calls)["total"]
+        w(f"| `{name}` | {paths[name]} | {s['prompt_tokens'] / runs:,.0f} | "
+          f"{s['completion_tokens'] / runs:,.0f} | {_fmt_usd(s['cost_usd'] / runs)} |")
+    w("")
+    w("Averaged per run. Cost tracks prompt size, so the OCR document is not "
+      "necessarily the most expensive despite being by far the slowest.")
+    w("")
+
+    w("## Query agent")
+    w("")
+    w("The Query Agent is reached through `POST /query`, not `/process`, so it "
+      "contributes nothing to the per-document cost above. Measured separately "
+      f"over {len(QUERY_PROBES)} probe questions.")
+    w("")
+    if query_calls:
+        q_summary = llm_metrics.summarise(query_calls)
+        n_q = len(QUERY_PROBES)
+        w("| Step | Calls/question | Prompt tokens | Completion tokens | Cost/question |")
+        w("|---|---|---|---|---|")
+        for agent in sorted(q_summary["per_agent"]):
+            b = q_summary["per_agent"][agent]
+            w(f"| `{agent}` | {b['calls'] / n_q:.1f} | {b['prompt_tokens'] / n_q:,.0f} | "
+              f"{b['completion_tokens'] / n_q:,.0f} | {_fmt_usd(b['cost_usd'] / n_q)} |")
+        w(f"| **total** | {q_summary['total']['calls'] / n_q:.1f} | "
+          f"{q_summary['total']['prompt_tokens'] / n_q:,.0f} | "
+          f"{q_summary['total']['completion_tokens'] / n_q:,.0f} | "
+          f"**{_fmt_usd(q_summary['total']['cost_usd'] / n_q)}** |")
+        w("")
+        w("Probe questions: " + ", ".join(f"`{q}`" for q in QUERY_PROBES) + ". These "
+          "measure cost, not answer quality — there is no ground truth for them.")
+    else:
+        w("No query-agent calls were recorded.")
+    w("")
+
+    w("## Method")
+    w("")
+    w("- Every Groq call goes through the instrumented proxy in "
+      "`ai-service/utils/llm_metrics.py`, which records the response's `usage` "
+      "fields, wall-clock latency and computed cost. It forwards to Groq "
+      "unchanged: no prompt, model or behaviour is altered by instrumentation.")
+    w("- Cost is `prompt_tokens/1e6 * input_price + completion_tokens/1e6 * "
+      "output_price`, using the published prices cited above.")
+    w("- A model with no published price records `None`, never `0`, so an "
+      "unpriced call cannot silently look free.")
+    w("")
+    w(f"Reproduce with `python eval/run_eval.py --runs {runs}`.")
+    w("")
+    return "\n".join(lines)
 
 
 def build_report(documents, results, paths, args):
