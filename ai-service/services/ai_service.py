@@ -210,6 +210,7 @@ def extract_shipment_fields(text: str, retry_count: int = 0) -> dict:
                 temperature=0.1  # Low temperature for deterministic extraction
             )
 
+            # pyrefly: ignore [bad-argument-type]
             raw_result = json.loads(completion.choices[0].message.content)
             logger.info(f"[Extractor] Raw LLM response received. Doc type: {raw_result.get('document_type')}")
 

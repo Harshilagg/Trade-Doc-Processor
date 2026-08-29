@@ -158,6 +158,7 @@ def route_decision(validation_output: dict, customer_name: str | None = None) ->
             timeout=Config.LLM_TIMEOUT_SECONDS,
             temperature=0.2
         )
+        # pyrefly: ignore [bad-argument-type]
         llm_out = json.loads(completion.choices[0].message.content)
         reason = llm_out.get("reason", "")
         amendment_draft = llm_out.get("amendment_draft", [])

@@ -130,6 +130,7 @@ def _validate_single_field(
         if match_found:
             return {
                 "status": "match",
+                # pyrefly: ignore [no-matching-overload]
                 "expected": " | ".join(allowed_values),
                 "found": found_value,
                 "confidence": round(confidence, 3),
@@ -146,6 +147,7 @@ def _validate_single_field(
         if best_similarity >= 0.70:
             return {
                 "status": "uncertain",
+                # pyrefly: ignore [no-matching-overload]
                 "expected": " | ".join(allowed_values),
                 "found": found_value,
                 "confidence": round(confidence, 3),
@@ -158,6 +160,7 @@ def _validate_single_field(
         # Third: no match, not fuzzy close → hard mismatch
         return {
             "status": "mismatch",
+            # pyrefly: ignore [no-matching-overload]
             "expected": " | ".join(allowed_values),
             "found": found_value,
             "confidence": round(confidence, 3),

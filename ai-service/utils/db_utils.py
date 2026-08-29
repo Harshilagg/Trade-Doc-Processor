@@ -131,6 +131,7 @@ def init_db():
 
 
 def _now() -> str:
+    # pyrefly: ignore [deprecated]
     return datetime.utcnow().isoformat()
 
 

@@ -22,6 +22,7 @@ def extract_digital_text(file_path: str):
         doc = fitz.open(file_path)
         full_text = ""
         for page in doc:
+            # pyrefly: ignore [unsupported-operation]
             full_text += page.get_text()
         doc.close()
         return full_text.strip()
