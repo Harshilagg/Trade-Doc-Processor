@@ -1,0 +1,57 @@
+{
+  "_comment": "Hand-labelled ground truth. Human-labelled only - never populate from pipeline output.",
+  "_schema_version": "1.0.0",
+  "_labelled_by": "",
+  "_labelled_date": "",
+  "documents": [
+    {
+      "file_name": "Test-1_Approved(Nike).pdf",
+      "customer_id": "nike",
+      "expected_decision": "Auto approval",
+      "expected_fields": {
+        "consignee_name": "Nike India Pvt Ltd",
+        "hs_code": "847130",
+        "port_of_loading": "Shanghai",
+        "port_of_discharge": "Mumbai",
+        "incoterms": "FOB",
+        "description_of_goods": "Laptop Computers",
+        "gross_weight": "1250 KG",
+        "invoice_number": "INV-2026-001"
+      },
+      "notes": ""
+    },
+    {
+      "file_name": "Test-2_Amendment(Nike).pdf",
+      "customer_id": "nike",
+      "expected_decision": "Amendment Required",
+      "expected_fields": {
+        "consignee_name": "Nike Asia Imports",
+        "hs_code": "847131",
+        "port_of_loading": "Shenzhen",
+        "port_of_discharge": "Mumbai",
+        "incoterms": "CIF",
+        "description_of_goods": "Laptop Computers",
+        "gross_weight": "1180 KG",
+        "invoice_number": "INV-2026-002"
+      },
+      "notes": ""
+    },
+    {
+      "file_name": "Test-3_HumanReview(Apple) (1).pdf",
+      "customer_id": "apple",
+      "expected_decision": "Human Review",
+      "expected_fields": {
+        "consignee_name": "Apple Inc.",
+        "hs_code": "847130",
+        "port_of_loading": "Shenzhen",
+        "port_of_discharge": "Los Angeles",
+        "incoterms": "DAP",
+        "description_of_goods": "Laptop Computers",
+        "gross_weight": "1850 KG",
+        "invoice_number": "APP-2026-001",
+        "container": "MSKU1234567"
+      },
+      "notes": ""
+    }
+  ]
+}

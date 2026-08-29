@@ -1,0 +1,57 @@
+{
+  "_comment": "TEMPLATE - every value is intentionally empty. Fill in by hand from the documents. See eval/README.md. Do NOT populate from pipeline output.",
+  "_schema_version": "1.0.0",
+  "_labelled_by": "",
+  "_labelled_date": "",
+  "documents": [
+    {
+      "file_name": "Test-1_Approved(Nike).pdf",
+      "customer_id": "",
+      "expected_decision": "",
+      "expected_fields": {
+        "consignee_name": "",
+        "hs_code": "",
+        "port_of_loading": "",
+        "port_of_discharge": "",
+        "incoterms": "",
+        "description_of_goods": "",
+        "gross_weight": "",
+        "invoice_number": ""
+      },
+      "notes": ""
+    },
+    {
+      "file_name": "Test-2_Amendment(Nike).pdf",
+      "customer_id": "",
+      "expected_decision": "",
+      "expected_fields": {
+        "consignee_name": "",
+        "hs_code": "",
+        "port_of_loading": "",
+        "port_of_discharge": "",
+        "incoterms": "",
+        "description_of_goods": "",
+        "gross_weight": "",
+        "invoice_number": ""
+      },
+      "notes": ""
+    },
+    {
+      "file_name": "Test-3_HumanReview(Apple) (1).pdf",
+      "customer_id": "",
+      "expected_decision": "",
+      "expected_fields": {
+        "consignee_name": "",
+        "hs_code": "",
+        "port_of_loading": "",
+        "port_of_discharge": "",
+        "incoterms": "",
+        "description_of_goods": "",
+        "gross_weight": "",
+        "invoice_number": "",
+        "container": ""
+      },
+      "notes": ""
+    }
+  ]
+}
