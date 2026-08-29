@@ -57,7 +57,7 @@ DECISION_ALIASES = {
 CONFIDENCE_BUCKETS = [(0.0, 0.5), (0.5, 0.7), (0.7, 0.85), (0.85, 1.0)]
 
 # Which model the run actually used vs. what config.py pins. Populated in main().
-MODEL_NOTE = {"configured": None, "used": None}
+MODEL_NOTE = {"configured": None, "used": None, "reasoning": None}
 
 # Fields compared exactly: structured identifiers where one character is an error.
 EXACT_FIELDS = {"hs_code", "incoterms", "invoice_number"}
@@ -188,6 +188,11 @@ def main():
             "different model than the code pins."
         ),
     )
+    ap.add_argument(
+        "--reasoning-model",
+        default=None,
+        help="Override Config.GROQ_MODEL_REASONING (router text, query answer).",
+    )
     args = ap.parse_args()
 
     # Runtime-only override. The agents read Config.GROQ_MODEL at call time, so
@@ -204,8 +209,11 @@ def main():
             flush=True,
         )
     config.Config.GROQ_MODEL = args.model
+    if args.reasoning_model:
+        config.Config.GROQ_MODEL_REASONING = args.reasoning_model
     MODEL_NOTE["configured"] = configured
     MODEL_NOTE["used"] = args.model
+    MODEL_NOTE["reasoning"] = config.Config.GROQ_MODEL_REASONING
 
     # The module already chdir'd into ai-service/, so resolve any relative path the
     # caller passed against the directory they actually invoked from.
@@ -298,15 +306,19 @@ def build_cost_report(documents, results, paths, args, query_calls):
     w("")
     w("**This is the pre-optimisation baseline. No cost reduction has been applied.**")
     w("")
-    w(f"Model: `{MODEL_NOTE['used']}`. Token counts are taken from each Groq "
-      "response's `usage` field, never counted locally.")
+    w(f"Extraction and NL->SQL model: `{MODEL_NOTE['used']}`. "
+      f"Router reasoning and query answer: `{MODEL_NOTE['reasoning']}`. "
+      "Token counts are taken from each Groq response's `usage` field, never "
+      "counted locally.")
     w("")
-    w(f"Pricing source: {llm_metrics.PRICING_SOURCE} — "
-      f"`{MODEL_NOTE['used']}` at "
-      f"${llm_metrics.PRICING_PER_1M[MODEL_NOTE['used']]['input']:.3f} per 1M input "
-      f"and ${llm_metrics.PRICING_PER_1M[MODEL_NOTE['used']]['output']:.2f} per 1M "
-      "output tokens. Any model without a published price records as unpriced "
-      "rather than as zero.")
+    w(f"Pricing source: {llm_metrics.PRICING_SOURCE}")
+    w("")
+    for m in dict.fromkeys([MODEL_NOTE["used"], MODEL_NOTE["reasoning"]]):
+        pr = llm_metrics.PRICING_PER_1M.get(m)
+        if pr:
+            w(f"- `{m}`: ${pr['input']:.3f} per 1M input, ${pr['output']:.2f} per 1M output")
+        else:
+            w(f"- `{m}`: no published price — recorded as unpriced, never as zero")
     w("")
 
     w("## Cost per document processed")

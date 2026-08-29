@@ -23,7 +23,7 @@ ARCHITECTURE NOTE:
 
 # pyrefly: ignore [missing-import]
 from groq import Groq
-from utils.llm_metrics import instrumented_groq
+from utils.llm_metrics import CostLimitExceeded, instrumented_groq
 import json
 from config import Config
 from logger import logger
@@ -156,7 +156,9 @@ def route_decision(validation_output: dict, customer_name: str | None = None) ->
         prompt = _build_reasoning_prompt(decision, c_name, field_results, summary)
         completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=Config.GROQ_MODEL,
+            # Reasoning model: this call only writes explanation text. The
+            # decision itself was already made deterministically above.
+            model=Config.GROQ_MODEL_REASONING,
             response_format={"type": "json_object"},
             timeout=Config.LLM_TIMEOUT_SECONDS,
             temperature=0.2
@@ -167,6 +169,12 @@ def route_decision(validation_output: dict, customer_name: str | None = None) ->
         amendment_draft = llm_out.get("amendment_draft", [])
         approval_summary = llm_out.get("approval_summary", "")
         logger.info(f"[Router] LLM reasoning generated. Amendment items: {len(amendment_draft)}")
+
+    except CostLimitExceeded:
+        # Unlike an LLM outage, a cost-cap breach must not be absorbed into
+        # fallback text: the breaker exists to stop the document loudly.
+        logger.error("[Router] Cost cap reached — aborting before reasoning.")
+        raise
 
     except Exception as e:
         # LLM failure for reasoning is non-fatal — decision is already made deterministically

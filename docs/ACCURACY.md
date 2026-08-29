@@ -1,6 +1,6 @@
 # Extraction accuracy
 
-Generated 2026-08-29 17:49 UTC by `eval/run_eval.py`.
+Generated 2026-08-29 18:12 UTC by `eval/run_eval.py`.
 
 ## Read this first
 
@@ -72,12 +72,12 @@ Wall-clock per run. `extract` is text extraction only (the PyMuPDF or PaddleOCR 
 
 | Document | Path | extract (s) | total (s) |
 |---|---|---|---|
-| `Test-1_Approved(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 3.41, 3.27, 3.86 |
-| `Test-2_Amendment(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 4.37, 13.47, 19.87 |
-| `Test-3_HumanReview(Apple) (1).pdf` | ocr | 16.03, 12.75, 17.50 | 19.80, 21.68, 21.78 |
+| `Test-1_Approved(Nike).pdf` | digital | 0.01, 0.01, 0.00 | 3.35, 3.48, 2.92 |
+| `Test-2_Amendment(Nike).pdf` | digital | 0.01, 0.01, 0.01 | 3.16, 2.85, 2.60 |
+| `Test-3_HumanReview(Apple) (1).pdf` | ocr | 15.24, 11.03, 10.11 | 18.41, 14.71, 13.59 |
 
-- **digital**: 6 runs over 2 document(s), text extraction 0.01–0.01s
-- **ocr**: 3 runs over 1 document(s), text extraction 12.75–17.50s
+- **digital**: 6 runs over 2 document(s), text extraction 0.00–0.01s
+- **ocr**: 3 runs over 1 document(s), text extraction 10.11–15.24s
 
 The two paths are backed by very few documents (2 digital, 1 OCR), so this split is a single observation per path rather than a comparison.
 
@@ -123,7 +123,7 @@ With a set this small the individual misses say more than the totals.
 | `hs_code` | 847130 | 847I3O | 0.80 | **miss** |
 | `port_of_loading` | Shenzhen | Shenzhen | 0.95 | ok |
 | `port_of_discharge` | Los Angeles | — | 0.00 | **miss** |
-| `incoterms` | DAP | DAP | 0.95 | ok |
+| `incoterms` | DAP | DAP | 0.97 | ok |
 | `description_of_goods` | Laptop Computers | — | 0.00 | **miss** |
 | `gross_weight` | 1850 KG | 7185O kg | 0.70 | **miss** |
 | `invoice_number` | APP-2026-001 | APP-2O26-OO1 | 0.90 | **miss** |

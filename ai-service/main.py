@@ -110,15 +110,23 @@ def trade_pipeline_task(doc_id: str, file_url: str, file_name: str, customer_id:
     from services.ai_service import extract_shipment_fields             # Extractor Agent
     from services.validator_agent import validate_shipment              # Validator Agent
     from services.router_agent import route_decision                    # Router Agent
+    from utils.llm_metrics import cost_budget, summarise, reset as reset_metrics
+    from config import Config
 
     pipeline_start = time.time()
     temp_file = None
+    reset_metrics()
+    # Circuit breaker: bounds runaway LLM spend on a single document. Baseline is
+    # ~$0.0008/document, so the cap is ~60x headroom — it trips on a runaway, not
+    # on normal variation. Breaching it fails the document loudly.
+    budget = cost_budget(Config.MAX_COST_PER_DOCUMENT_USD or None, label=doc_id)
 
     logger.info(f"[Pipeline] START doc_id={doc_id} customer={customer_id}")
     log_audit(doc_id, "system", "start",
               message=f"Pipeline started for {file_name}, customer: {customer_id}")
 
     try:
+      with budget:
         # ── Step 1: Download from S3 (reused) ────────────────────────────────
         from urllib.parse import urlparse
         ext = os.path.splitext(urlparse(file_url).path)[1].lower() or ".pdf"
@@ -197,14 +205,22 @@ def trade_pipeline_task(doc_id: str, file_url: str, file_name: str, customer_id:
                   message=f"Pipeline complete in {total_duration}s. Decision: {decision_result['decision']}",
                   duration=total_duration)
 
+        # Cost logged alongside latency, per Phase 2 requirement.
+        spend = summarise()["total"]
         logger.info(
             f"[Pipeline] SUCCESS doc_id={doc_id} in {total_duration}s "
-            f"→ {decision_result['decision']}"
+            f"→ {decision_result['decision']} "
+            f"| ${spend['cost_usd']:.6f} over {spend['calls']} LLM calls "
+            f"({spend['prompt_tokens']} in / {spend['completion_tokens']} out)"
         )
 
     except Exception as e:
         total_duration = round(time.time() - pipeline_start, 2)
-        logger.error(f"[Pipeline] FAILURE doc_id={doc_id}: {e}")
+        spend = summarise()["total"]
+        logger.error(
+            f"[Pipeline] FAILURE doc_id={doc_id}: {e} "
+            f"| ${spend['cost_usd']:.6f} spent before failing"
+        )
         mark_shipment_failed(doc_id, str(e))
         log_audit(doc_id, "system", "error",
                   message="Pipeline failed",

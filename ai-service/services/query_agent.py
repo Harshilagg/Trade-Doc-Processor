@@ -213,7 +213,9 @@ def run_query(question: str) -> dict:
         answer_completion = groq_client.chat.completions.create(
             _agent="query_answer",
             messages=[{"role": "user", "content": _build_answer_prompt(question, sql, rows)}],
-            model=Config.GROQ_MODEL,
+            # Reasoning model: phrases rows already fetched from SQLite. SQL
+            # generation above stays on the main model, where correctness matters.
+            model=Config.GROQ_MODEL_REASONING,
             timeout=Config.LLM_TIMEOUT_SECONDS,
             temperature=0.1,
             max_tokens=300

@@ -17,7 +17,7 @@ ARCHITECTURE NOTE:
 
 # pyrefly: ignore [missing-import]
 from groq import Groq
-from utils.llm_metrics import instrumented_groq
+from utils.llm_metrics import CostLimitExceeded, instrumented_groq
 import json
 import re
 from config import Config
@@ -234,6 +234,13 @@ def extract_shipment_fields(text: str, retry_count: int = 0) -> dict:
                 "retry_count": attempt,
                 "success": True
             }
+
+        except CostLimitExceeded:
+            # A cost-cap breach is not a transient LLM error: retrying cannot
+            # help and would burn the remaining budget. Propagate so the caller
+            # fails loudly rather than receiving silently-null fields.
+            logger.error("[Extractor] Cost cap reached — aborting extraction.")
+            raise
 
         except json.JSONDecodeError as je:
             logger.warning(f"[Extractor] JSON parse error on attempt {attempt + 1}: {je}")

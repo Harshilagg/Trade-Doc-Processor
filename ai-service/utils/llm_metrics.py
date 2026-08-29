@@ -85,6 +85,76 @@ class _Recorder:
 _recorder = _Recorder()
 
 
+class CostLimitExceeded(RuntimeError):
+    """Raised when a budgeted unit of work exceeds its cost cap."""
+
+
+class _Budget(threading.local):
+    """Per-thread cost budget. Thread-local so concurrent requests don't share."""
+
+    limit_usd = None
+    spent_usd = 0.0
+    label = None
+
+
+_budget = _Budget()
+
+
+class cost_budget:
+    """
+    Context manager enforcing a per-unit-of-work cost cap.
+
+        with cost_budget(Config.MAX_COST_PER_DOCUMENT_USD, label=doc_id):
+            ...pipeline...
+
+    The breaker fails loudly: once spend exceeds the cap, the next LLM call
+    raises CostLimitExceeded rather than quietly continuing to spend. Cost is
+    only known after a call returns, so the call that crosses the line is
+    completed and recorded — the cap bounds the overshoot to one call, it does
+    not prevent it.
+
+    A limit of None disables enforcement while still recording spend.
+    """
+
+    def __init__(self, limit_usd, label=None):
+        self.limit_usd = limit_usd
+        self.label = label
+
+    def __enter__(self):
+        self._prev = (_budget.limit_usd, _budget.spent_usd, _budget.label)
+        _budget.limit_usd = self.limit_usd
+        _budget.spent_usd = 0.0
+        _budget.label = self.label
+        return self
+
+    def __exit__(self, *exc):
+        self.spent_usd = _budget.spent_usd
+        _budget.limit_usd, _budget.spent_usd, _budget.label = self._prev
+        return False
+
+    @property
+    def spent(self):
+        return _budget.spent_usd
+
+
+def _check_budget_before_call(agent):
+    limit = _budget.limit_usd
+    if limit is None:
+        return
+    if _budget.spent_usd >= limit:
+        raise CostLimitExceeded(
+            f"Cost cap exceeded before {agent} call: "
+            f"${_budget.spent_usd:.6f} spent against a ${limit:.6f} limit"
+            + (f" for {_budget.label}" if _budget.label else "")
+            + ". Refusing to spend further."
+        )
+
+
+def _record_budget_spend(cost):
+    if _budget.limit_usd is not None and cost:
+        _budget.spent_usd += cost
+
+
 def reset():
     """Clear recorded calls. Used between eval documents."""
     _recorder.reset()
@@ -148,6 +218,7 @@ class _InstrumentedCompletions:
     def create(self, *args, _agent=None, **kwargs):
         agent = _agent or self._default_agent
         model = kwargs.get("model", "unknown")
+        _check_budget_before_call(agent)
         started = time.perf_counter()
         try:
             completion = self._inner.create(*args, **kwargs)
@@ -191,11 +262,14 @@ class _InstrumentedCompletions:
                 cost_usd=cost,
             )
         )
+        _record_budget_spend(cost)
         logger.info(
             f"[Metrics] {agent}: {actual_model} "
             f"in={prompt_tokens} out={completion_tokens} "
             f"{latency:.2f}s "
             + (f"${cost:.6f}" if cost is not None else "unpriced")
+            + (f" | budget ${_budget.spent_usd:.6f}/${_budget.limit_usd:.6f}"
+               if _budget.limit_usd is not None else "")
         )
         return completion
 

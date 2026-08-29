@@ -43,7 +43,14 @@ class Config:
     # 404 model_not_found, and no Llama chat model is available. See
     # docs/FINDINGS.md finding 1. This is the model docs/ACCURACY.md's baseline
     # was measured on, so config and reported numbers describe the same model.
-    GROQ_MODEL = "openai/gpt-oss-120b"
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+    # Model routing. Extraction is accuracy-critical and stays on the larger
+    # model. The router's decision is deterministic — its LLM call only writes
+    # the human-readable explanation — and the query agent's answer step only
+    # phrases rows already fetched, so both can run on the smaller, cheaper
+    # model. Measured effect on accuracy and cost is in docs/COST.md.
+    GROQ_MODEL_REASONING = os.getenv("GROQ_MODEL_REASONING", "openai/gpt-oss-20b")
 
     # SQLite — replaces Firestore for shipment/pipeline data persistence
     # ARCHITECTURE: SQLite chosen for zero-infra local storage; portable for demo
@@ -56,6 +63,11 @@ class Config:
     DEFAULT_CONFIDENCE_THRESHOLD = 0.60
 
     # Agent retry config — prevents infinite loops
+    # Per-document LLM cost cap, USD. Measured baseline is ~$0.0008/document
+    # (docs/COST.md), so this leaves roughly 60x headroom: it is a runaway
+    # circuit breaker, not a tuning knob. Set to 0 or empty to disable.
+    MAX_COST_PER_DOCUMENT_USD = float(os.getenv("MAX_COST_PER_DOCUMENT_USD", "0.05"))
+
     MAX_LLM_RETRIES = 2
     LLM_TIMEOUT_SECONDS = 30.0
 
