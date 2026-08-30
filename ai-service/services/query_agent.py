@@ -26,6 +26,7 @@ ARCHITECTURE NOTE:
 # pyrefly: ignore [missing-import]
 from groq import Groq
 from utils.llm_metrics import instrumented_groq
+from utils import sql_cache
 import json
 import re
 from config import Config
@@ -171,20 +172,31 @@ def run_query(question: str) -> dict:
         "success": False
     }
 
-    # Step 1: Generate SQL from natural language
+    # Step 1: Generate SQL from natural language.
+    # The translation is cached, not the rows: a hit skips this LLM call, and the
+    # SQL is still executed below against live data.
+    cached_sql = sql_cache.get(question)
+    if cached_sql:
+        result["sql_generated"] = cached_sql
+        result["sql_cache_hit"] = True
+        sql = cached_sql
+        logger.info(f"[Query] Reusing cached SQL: {sql}")
+
     try:
-        sql_completion = groq_client.chat.completions.create(
-            _agent="query_sql",
-            messages=[{"role": "user", "content": _build_sql_prompt(question)}],
-            model=Config.GROQ_MODEL,
-            timeout=Config.LLM_TIMEOUT_SECONDS,
-            temperature=0.0,  # Fully deterministic SQL generation
-            max_tokens=500
-        )
-        raw_sql = sql_completion.choices[0].message.content or ""
-        sql = _extract_sql(raw_sql)
-        result["sql_generated"] = sql
-        logger.info(f"[Query] Generated SQL: {sql}")
+        if not cached_sql:
+            result["sql_cache_hit"] = False
+            sql_completion = groq_client.chat.completions.create(
+                _agent="query_sql",
+                messages=[{"role": "user", "content": _build_sql_prompt(question)}],
+                model=Config.GROQ_MODEL,
+                timeout=Config.LLM_TIMEOUT_SECONDS,
+                temperature=0.0,  # Fully deterministic SQL generation
+                max_tokens=500
+            )
+            raw_sql = sql_completion.choices[0].message.content or ""
+            sql = _extract_sql(raw_sql)
+            result["sql_generated"] = sql
+            logger.info(f"[Query] Generated SQL: {sql}")
 
     except Exception as e:
         logger.error(f"[Query] SQL generation failed: {e}")
@@ -197,6 +209,10 @@ def run_query(question: str) -> dict:
         result["raw_results"] = rows
         result["row_count"] = len(rows)
         logger.info(f"[Query] SQL returned {len(rows)} rows.")
+        # Only cache SQL that actually executed — never store a query that the
+        # guard rejected or that referenced a missing column.
+        if not cached_sql:
+            sql_cache.put(question, sql)
 
     except ValueError as ve:
         # Only SELECT queries allowed

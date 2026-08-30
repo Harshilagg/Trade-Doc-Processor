@@ -1,0 +1,114 @@
+{
+  "_comment": "TEMPLATE - every 'same_meaning' is intentionally empty. Fill in by hand. See eval/README-query-pairs.md. Do NOT populate from embedding scores.",
+  "_schema_version": "1.0.0",
+  "_labelled_by": "",
+  "_labelled_date": "",
+  "_instructions": "For each pair set same_meaning to true or false. true = both questions should return the SAME SQL. false = they must NOT share a cache entry. Add your own pairs freely; the near-miss ones matter most.",
+  "pairs": [
+    {
+      "id": 1,
+      "question_a": "How many shipments are there?",
+      "question_b": "What is the total number of shipments?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 2,
+      "question_a": "Show me shipments over 500kg",
+      "question_b": "Show me shipments under 500kg",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 3,
+      "question_a": "Which shipments were auto approved?",
+      "question_b": "Which shipments need human review?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 4,
+      "question_a": "List shipments for Nike",
+      "question_b": "Show all Nike shipments",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 5,
+      "question_a": "Which shipments are going to Mumbai?",
+      "question_b": "Which shipments are coming from Mumbai?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 6,
+      "question_a": "What is the average gross weight?",
+      "question_b": "What is the mean gross weight?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 7,
+      "question_a": "What is the average gross weight?",
+      "question_b": "What is the maximum gross weight?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 8,
+      "question_a": "Show shipments with incoterms FOB",
+      "question_b": "Show shipments with incoterms CIF",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 9,
+      "question_a": "How many documents failed validation?",
+      "question_b": "How many documents passed validation?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 10,
+      "question_a": "List all shipments",
+      "question_b": "Show me every shipment",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 11,
+      "question_a": "Which shipments loaded at Shanghai?",
+      "question_b": "Which shipments discharged at Shanghai?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 12,
+      "question_a": "Show me the most recent shipment",
+      "question_b": "Show me the oldest shipment",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 13,
+      "question_a": "How many shipments does Nike have?",
+      "question_b": "How many shipments does Apple have?",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 14,
+      "question_a": "What HS codes are in the system?",
+      "question_b": "List the distinct HS codes",
+      "same_meaning": "",
+      "notes": ""
+    },
+    {
+      "id": 15,
+      "question_a": "Show shipments requiring amendment",
+      "question_b": "Show shipments that need to be corrected",
+      "same_meaning": "",
+      "notes": ""
+    }
+  ]
+}

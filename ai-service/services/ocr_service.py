@@ -8,6 +8,7 @@ import numpy as np
 # pyrefly: ignore [missing-import]
 from paddleocr import PaddleOCR
 from logger import logger
+from utils import ocr_cache
 
 import threading
 
@@ -81,6 +82,12 @@ def run_ocr(engine, image_input):
 
 def process_scanned_document(file_path: str):
     """Production OCR pipeline: single-pass, color-preserving, fast."""
+    # Cache is keyed on the document's bytes, so a repeat of the same file skips
+    # OCR entirely. An edited document hashes differently and misses.
+    cached = ocr_cache.get(file_path)
+    if cached is not None:
+        return cached
+
     current_target = file_path
     is_pdf = file_path.lower().endswith(".pdf")
     temp_files = []
@@ -133,7 +140,10 @@ def process_scanned_document(file_path: str):
                 logger.info(f"[OCR] Pass 2 improved: {len(final_text)} chars")
         
         logger.info(f"[OCR] Complete. {len(final_text)} chars extracted.")
-        
+
+        # Store before cleanup, keyed on the original document's bytes.
+        ocr_cache.put(file_path, final_text)
+
         # Cleanup temp files
         for f in temp_files:
             if os.path.exists(f):

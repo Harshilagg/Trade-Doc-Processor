@@ -34,3 +34,5 @@ hf-space-deploy/
 
 # Build output
 client/dist/
+# Local caches (OCR text, generated SQL)
+ai-service/.cache/

@@ -62,12 +62,24 @@ class Config:
     # Confidence threshold below which a field is marked "uncertain"
     DEFAULT_CONFIDENCE_THRESHOLD = 0.60
 
-    # Agent retry config — prevents infinite loops
     # Per-document LLM cost cap, USD. Measured baseline is ~$0.0008/document
     # (docs/COST.md), so this leaves roughly 60x headroom: it is a runaway
     # circuit breaker, not a tuning knob. Set to 0 or empty to disable.
     MAX_COST_PER_DOCUMENT_USD = float(os.getenv("MAX_COST_PER_DOCUMENT_USD", "0.05"))
 
+    # ── Caching ───────────────────────────────────────────────────────────────
+    # OCR is the slowest step by three orders of magnitude (10-22s vs 0.01s for a
+    # digital PDF). Keyed on document bytes, so an edited document misses.
+    OCR_CACHE_ENABLED = os.getenv("OCR_CACHE_ENABLED", "true").lower() != "false"
+    OCR_CACHE_DIR = os.getenv("OCR_CACHE_DIR", "./.cache/ocr")
+
+    # Query agent caches the generated SQL, never the result rows: reusing SQL
+    # and re-executing it keeps answers live, while caching rows would go stale
+    # the moment a document is processed.
+    SQL_CACHE_ENABLED = os.getenv("SQL_CACHE_ENABLED", "true").lower() != "false"
+    SQL_CACHE_PATH = os.getenv("SQL_CACHE_PATH", "./.cache/sql_cache.json")
+
+    # Agent retry config — prevents infinite loops
     MAX_LLM_RETRIES = 2
     LLM_TIMEOUT_SECONDS = 30.0
 

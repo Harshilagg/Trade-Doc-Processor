@@ -134,6 +134,45 @@ instead of `match`, so unvalidated fields stop counting as successes.
 mechanism, not a measured error rate. The digital-path result (16 of 16 at 1.00) is
 equally thin.
 
+### Second confirmation: model A/B tests are misleading on this metric
+
+Measured while evaluating model routing for cost. Running **extraction** on
+`openai/gpt-oss-20b` instead of `openai/gpt-oss-120b` produced, on the same set:
+
+| | gpt-oss-120b | gpt-oss-20b |
+|---|---|---|
+| Fields correct | 18 of 24 | 18 of 24 |
+| Decisions correct | 2 of 3 | **3 of 3** |
+| Cost per document | $0.000838 | $0.000654 |
+
+Read naively, the smaller model is more accurate and 21% cheaper. It is not. On the
+scanned document the two models extracted **byte-identical values** — the same
+`Aphle Inc.`, the same corrupted `847I3O`. Only the self-reported confidence
+differed:
+
+| Field | Extracted (both) | 120b confidence | 20b confidence | apple threshold |
+|---|---|---|---|---|
+| `hs_code` | `847I3O` | 0.80 | 0.60 | 0.72 |
+
+At 0.80 the value clears the threshold, gets rule-checked, fails the `8471` prefix,
+and becomes a `mismatch` → `amendment_required`. At 0.60 it falls below the
+threshold, becomes `uncertain`, and the document routes to `human_review` — which
+happens to match the hand-labelled expectation.
+
+**The better decision score came from a lower confidence number on the same wrong
+value, not from better extraction.** The pipeline's decision is being driven by a
+self-reported figure that varies by model while correctness does not.
+
+The practical consequence is a trap: anyone A/B-testing models on decision accuracy
+over this set would conclude the smaller model is better and ship it, having
+actually measured nothing about extraction quality. Any future model comparison
+should be judged on extracted **values** first, with decision accuracy read only
+alongside the confidences that produced it.
+
+The 120b configuration is the one retained, because the value-level accuracy is
+identical and the confidence it reports is at least closer to reflecting that the
+field was legible enough to rule-check.
+
 ---
 
 ## 3. Every route is unauthenticated
