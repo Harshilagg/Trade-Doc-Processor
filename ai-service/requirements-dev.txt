@@ -2,3 +2,9 @@
 # Dockerfile installs into the production image.
 -r requirements.txt
 pytest>=8.0
+
+# Semantic cache threshold sweep (eval/sweep_semantic.py) only.
+# Runs sentence-transformers/all-MiniLM-L6-v2 via ONNX. fastembed rather than
+# the sentence-transformers package because PyTorch publishes no macOS x86_64
+# wheels for Python 3.13, so torch cannot be installed here at all.
+fastembed>=0.4
