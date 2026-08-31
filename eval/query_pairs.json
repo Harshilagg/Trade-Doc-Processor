@@ -1,0 +1,114 @@
+{
+  "_comment": "Labelled query pairs for the semantic cache threshold sweep. Labels are a judgement about SQL equivalence, decided per pair on the WHERE clause / aggregate each question needs - not from any similarity score.",
+  "_schema_version": "1.0.0",
+  "_labelled_by": "Claude (assistant) - NOT independently labelled by the repository owner. See docs/SEMANTIC_CACHE.md 'Provenance' for why this weakens the result.",
+  "_labelled_date": "2026-08-31",
+  "_instructions": "For each pair set same_meaning to true or false. true = both questions should return the SAME SQL. false = they must NOT share a cache entry.",
+  "pairs": [
+    {
+      "id": 1,
+      "question_a": "How many shipments are there?",
+      "question_b": "What is the total number of shipments?",
+      "same_meaning": true,
+      "notes": "Both are SELECT COUNT(*) FROM shipments. Pure paraphrase."
+    },
+    {
+      "id": 2,
+      "question_a": "Show me shipments over 500kg",
+      "question_b": "Show me shipments under 500kg",
+      "same_meaning": false,
+      "notes": "Comparison operator inverts: WHERE weight > 500 vs < 500. Disjoint result sets."
+    },
+    {
+      "id": 3,
+      "question_a": "Which shipments were auto approved?",
+      "question_b": "Which shipments need human review?",
+      "same_meaning": false,
+      "notes": "Different literal in WHERE decision = 'auto_approve' vs 'human_review'. Mutually exclusive by the router's precedence rules."
+    },
+    {
+      "id": 4,
+      "question_a": "List shipments for Nike",
+      "question_b": "Show all Nike shipments",
+      "same_meaning": true,
+      "notes": "Both WHERE customer_id = 'nike'. Word order and verb differ only."
+    },
+    {
+      "id": 5,
+      "question_a": "Which shipments are going to Mumbai?",
+      "question_b": "Which shipments are coming from Mumbai?",
+      "same_meaning": false,
+      "notes": "Different column: port_of_discharge vs port_of_loading. Direction of travel reverses."
+    },
+    {
+      "id": 6,
+      "question_a": "What is the average gross weight?",
+      "question_b": "What is the mean gross weight?",
+      "same_meaning": true,
+      "notes": "Both AVG(gross_weight). 'Mean' and 'average' are the same aggregate."
+    },
+    {
+      "id": 7,
+      "question_a": "What is the average gross weight?",
+      "question_b": "What is the maximum gross weight?",
+      "same_meaning": false,
+      "notes": "Different aggregate: AVG vs MAX. Same column, different function."
+    },
+    {
+      "id": 8,
+      "question_a": "Show shipments with incoterms FOB",
+      "question_b": "Show shipments with incoterms CIF",
+      "same_meaning": false,
+      "notes": "Different literal in WHERE incoterms = 'FOB' vs 'CIF'. Identical sentence structure."
+    },
+    {
+      "id": 9,
+      "question_a": "How many documents failed validation?",
+      "question_b": "How many documents passed validation?",
+      "same_meaning": false,
+      "notes": "Complementary sets: overall_status = 'fail' vs 'pass'. One word inverts the answer."
+    },
+    {
+      "id": 10,
+      "question_a": "List all shipments",
+      "question_b": "Show me every shipment",
+      "same_meaning": true,
+      "notes": "Both SELECT * FROM shipments with no WHERE. Paraphrase."
+    },
+    {
+      "id": 11,
+      "question_a": "Which shipments loaded at Shanghai?",
+      "question_b": "Which shipments discharged at Shanghai?",
+      "same_meaning": false,
+      "notes": "Different column: port_of_loading vs port_of_discharge. Same port, opposite end of the journey."
+    },
+    {
+      "id": 12,
+      "question_a": "Show me the most recent shipment",
+      "question_b": "Show me the oldest shipment",
+      "same_meaning": false,
+      "notes": "ORDER BY created_at DESC vs ASC. Returns opposite ends of the table."
+    },
+    {
+      "id": 13,
+      "question_a": "How many shipments does Nike have?",
+      "question_b": "How many shipments does Apple have?",
+      "same_meaning": false,
+      "notes": "Different customer_id literal. Same topic and structure, different answer."
+    },
+    {
+      "id": 14,
+      "question_a": "What HS codes are in the system?",
+      "question_b": "List the distinct HS codes",
+      "same_meaning": true,
+      "notes": "Both SELECT DISTINCT hs_code FROM shipments. Paraphrase."
+    },
+    {
+      "id": 15,
+      "question_a": "Show shipments requiring amendment",
+      "question_b": "Show shipments that need to be corrected",
+      "same_meaning": true,
+      "notes": "Both WHERE decision = 'amendment_required'. 'Needs correcting' is the router's own description of that decision."
+    }
+  ]
+}

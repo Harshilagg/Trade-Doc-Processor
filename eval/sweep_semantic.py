@@ -191,21 +191,47 @@ def build_report(data, pairs, sims, rows, same, diff, best_safe, inverted,
 
     w("## Sweep")
     w("")
-    w("| Threshold | Cache hits (same-meaning) | False hits (different-meaning) |")
-    w("|---|---|---|")
+    w("`Served` is every pair the cache would treat as a hit at that threshold. "
+      "`Wrong` is how many of those return SQL for a different question — the "
+      "number that actually reaches a user.")
+    w("")
+    w("| Threshold | Cache hits (same-meaning) | False hits (different-meaning) | Served | Wrong |")
+    w("|---|---|---|---|---|")
     prev = None
     for r in rows:
         signature = (r["hits"], r["false_hits"])
         if signature == prev:
             continue  # collapse identical consecutive rows
         prev = signature
+        served = r["hits"] + r["false_hits"]
         flag = " **<- unsafe**" if r["false_hits"] else ""
+        wrong = f"**{r['false_hits']} of {served}**" if served else "—"
         w(f"| {r['threshold']:.2f} | {r['hits']} of {r['same_total']} | "
-          f"{r['false_hits']} of {r['diff_total']}{flag} |")
+          f"{r['false_hits']} of {r['diff_total']}{flag} | {served} | {wrong} |")
     w("")
     w("Rows where neither count changes are collapsed. Counts, not percentages: "
       f"{len(pairs)} pairs cannot support a rate.")
     w("")
+
+    # The operating point a proponent of the tier would argue for: most hits
+    # served correctly. Reported even when it is bad, because it is the number
+    # the decision turns on.
+    serving = [r for r in rows if r["hits"] + r["false_hits"] > 0]
+    if serving:
+        best = min(serving, key=lambda r: (r["false_hits"] / (r["hits"] + r["false_hits"]),
+                                           -r["hits"]))
+        served = best["hits"] + best["false_hits"]
+        w("### Best available operating point")
+        w("")
+        w(f"The most favourable threshold that serves anything is "
+          f"**{best['threshold']:.2f}**: {best['hits']} correct hits and "
+          f"**{best['false_hits']} false hits**, so **{best['false_hits']} of "
+          f"{served} answers served from the cache would be wrong**.")
+        w("")
+        w("That is the best case, on a set chosen by the same person who wrote "
+          "the tool. It is not a shippable operating point for a system that "
+          "answers questions about shipping compliance.")
+        w("")
 
     w("## Every pair, measured")
     w("")
@@ -218,6 +244,37 @@ def build_report(data, pairs, sims, rows, same, diff, best_safe, inverted,
     w("")
     w("Sorted by similarity. Where a **different** row sits above a same row, no "
       "threshold can separate them.")
+    w("")
+
+    w("## Provenance — read before citing this")
+    w("")
+    w(f"Labelled by: **{data.get('_labelled_by') or 'unrecorded'}**")
+    w("")
+    w("Three limits on this result, stated so it is not over-claimed:")
+    w("")
+    w("1. **The labels and the pairs come from the same source that built the "
+      "tool.** Independent labelling by someone who had not seen the "
+      "implementation would be stronger evidence. The labels were decided on "
+      "SQL grounds — which `WHERE` clause or aggregate each question needs — "
+      "and each pair's reasoning is recorded in `eval/query_pairs.json`, so "
+      "they can be checked and disagreed with.")
+    w("")
+    w("2. **The pair set is adversarially weighted.** It was written to probe "
+      "near-misses, so the proportion of different-meaning pairs is a design "
+      "choice, not a sample of real traffic. **The false-hit *rate* therefore "
+      "means nothing about production**, and no rate should be quoted from it.")
+    w("")
+    w("3. **What does survive those limits is the ordering.** Whether two "
+      "questions need the same SQL is not a matter of taste: `over 500kg` and "
+      "`under 500kg` need opposite comparison operators. That the two "
+      "highest-scoring pairs in the set both mean opposite things is a property "
+      "of the embedding, not of the sampling. Rebalancing the set would move "
+      "every count in the sweep, and would not reorder that table.")
+    w("")
+    w("A stronger version of this experiment would use real logged questions, "
+      "labelled by someone other than the tool's author. That is worth doing "
+      "before the tier is ever reconsidered — but it is unlikely to reverse the "
+      "conclusion, because the failure is structural rather than statistical.")
     w("")
     return "\n".join(lines)
 
